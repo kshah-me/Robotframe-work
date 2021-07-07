@@ -1,0 +1,50 @@
+def get_priority_alm(jira_priority):
+    if jira_priority == 'Low' or jira_priority == 'Lowest' or jira_priority == 'Minor':
+        jira_priority = '4 - Low'
+    elif jira_priority == 'Medium' or jira_priority == 'High':
+        jira_priority = '3 - Medium'
+    elif jira_priority == 'Major' or jira_priority == 'Highest':
+        jira_priority = '2 - High Attention'
+    else:
+        jira_priority = '1 - Resolve Immediately'
+    return jira_priority
+
+
+def get_severity_alm(jira_severity):
+    if jira_severity == 'Low' or jira_severity == 'None' or jira_severity == 'Minor':
+        jira_severity = '4 - Minor'
+    elif jira_severity == 'Medium':
+        jira_severity = '3 - Major'
+    elif jira_severity == '3 - Major' or jira_severity == 'High':
+        jira_severity = '2 - Critical'
+    else:
+        jira_severity = '1 - Show Stopper'
+    return jira_severity
+
+
+def replace_double_quotes(input_string):
+    string_with_slash = input_string.replace('"', '\\"')
+    # string_with_slash = string_with_slash.replace(": \\{", ": \\\{")
+    # string_with_slash = string_with_slash.replace("\\\\{", "\\\{")
+    return string_with_slash
+    
+    
+    
+
+
+JIRA_ID = 'xxxxx'
+JIRA_PASSWORD = 'xxxx'
+JIRA_URL = 'https://rbcjira.fg.rbc.com:8443'
+JIRA_PROJECT = 'EPSMAINT'
+ALM_USER_NAME = "xxxx"
+ALM_PASSWORD = "xxxx"
+ALM_DOMAIN = "RA_PAYMENTS_TRADE_TECH"
+ALM_PROJECT = "PSH"
+ALM_URL = 'http://alm126.fg.rbc.com:8085'
+Project_Name_In_ALM = '4356-08 SPS Cloud'
+Testing_Phase_In_ALM = '4-Functional / System Testing'
+Business_Function_In_ALM = 'Process Payment Request'
+Target_Cycle_In_ALM = 'SDF'
+Problem_Area_In_ALM = 'PSH - SPS'
+target_rel_id_in_QC = '53'
+target_rcyc_id_in_QC = '149'
