@@ -1,0 +1,216 @@
+Library    JSONLibrary
+Library    String
+Library    Collections
+Library      RequestsLibrary
+Variables  ../Resources/Login_Credential.py
+#Library  ../Resources/Excel_reading.py
+Library  ../Resources/Severity and Priority.py
+
+
+* Keywords *
+Get_Authentication_Jira_ALM
+    ${auth_Jira}    create list  ${JIRA_ID}    ${JIRA_PASSWORD}
+    ${auth_ALM}    create list  ${ALM_USER_NAME}    ${ALM_PASSWORD}
+    set global variable     ${auth_Jira}
+    set global variable     ${auth_ALM}
+
+
+Login_To_Jira
+    create session    defectsession   ${JIRA_URL}
+    ${Payload}  Catenate    {"username": "${JIRA_ID}","password": "${JIRA_PASSWORD}"}
+    log  ${Payload}
+    ${headers}  create dictionary  Content-Type     application/json
+    ${response}     post request  defectsession    /rest/auth/1/session   headers=${headers}      data=${Payload}
+    ${statuscode}   convert to string   ${response.status_code}
+    should be equal     ${statuscode}   200
+    ${response_in_Json}    to json  ${response.content}
+    log  ${response_in_Json}
+    set global variable  ${response_in_Json}
+    ${response_in_cookie_Items}    Get Dictionary Items  ${response.cookies}
+    ${headers}  create dictionary  Cookie=JSESSIONID=${response_in_cookie_Items}[1];atlassian.xsrf.token=${response_in_cookie_Items}[3]
+    ${resposne_logout}     post request     defectsession   /logout     headers=${headers}
+
+
+Get_Jira_Defetc_details
+    Get_Authentication_Jira_ALM
+    ${date_time}    Get Current Date
+    ${date_time}    Convert Date    ${date_time}    result_format=%y/%m/%d
+    create session    defectsession   ${JIRA_URL}      auth=${auth_Jira}
+    ${response}     get request     defectsession   /rest/api/2/search?jql=project = ${JIRA_PROJECT} AND issuetype = Bug AND createdDate>= "2021/06/20"
+    #${response}     get request     defectsession   /rest/api/2/issue/EPSMAINT-429
+    ${statuscode}   convert to string   ${response.status_code}
+    should be equal     ${statuscode}   200
+    ${response_in_Json}    to json  ${response.content}
+    log  ${response_in_Json}
+    set global variable  ${response_in_Json}
+#    ${response_in_cookie_Items}    Get Dictionary Items  ${response.cookies}
+#    ${headers}  create dictionary  Cookie=JSESSIONID=${response_in_cookie_Items}[1];atlassian.xsrf.token=${response_in_cookie_Items}[3]
+#    ${resposne_logout}     post request     defectsession   /logout     headers=${headers}
+#    ${resposne_Session_end}     delete request     defectsession   /logout     headers=${headers}
+
+
+Get_ALM_Defects_List
+    Get_Authentication_Jira_ALM
+    ${date_time}    Get Current Date
+    ${date_time}    Convert Date    ${date_time}    result_format=%y-%m-%d
+    set global variable  ${date_time}
+    create session  getrequestsession      ${ALM_URL}      auth=${auth_ALM}
+    ${headers}  create dictionary  Content-Type     application/json
+    set global variable  ${headers}
+    ${response}     get request  getrequestsession    /qcbin/api/domains/${ALM_DOMAIN}/projects/${ALM_PROJECT}/defects?fields=name&query="(creation-time>='2021-04-10') ; project='${Project_Name_In_ALM}'"
+    ${statuscode}   convert to string   ${response.status_code}
+    should be equal     ${statuscode}   200
+    ${alm_response_in_Json}    convert to string  ${response.content}
+    log  ${alm_response_in_Json}
+    set global variable  ${alm_response_in_Json}
+    log  ${response.cookies}
+    log  ${response.headers}
+    ${response_logout}     get request  getrequestsession    /qcbin/api/authentication/sign-out
+    ${statuscode}   convert to string   ${response_logout.status_code}
+    should be equal     ${statuscode}   200
+    
+    
+    
+    
+HP_ALM_Post_Method
+    [Arguments]  ${Logging_Issue_ALM_Number}
+    ${default_Reporter_id}    create list  340649334
+    ${default_Reporter_name}    create list  Vasudevan, Sindhuja (CWM-NR)
+    ${default_Assigned_id}    create list  323029363
+    ${default_Assigned_name}    create list  Krishnamurthy, Sowmya (CWM-NR)
+    Get_Jira_Defetc_details
+    ${ALM_Defect_Key}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].key
+    ${ALM_Defect_Summary_without_quotes_check}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.summary
+    ${ALM_Defect_Summary}   replace_double_quotes   ${ALM_Defect_Summary_without_quotes_check}[0]
+    ${ALM_Defect_Key}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].key
+    ${Priority}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.priority.name
+    ${ALM_Priority}=    get_priority_alm    ${Priority}[0]
+    ${Severity}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.customfield_11410.value
+    ${ALM_severity}=    get_severity_alm    ${Severity}[0]
+    ${Assigned_Name_check}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.assignee.displayName
+    ${Assigned_Name}=    run keyword if  '${Assigned_Name_check}[0]'=='Farmakovski, Chris (RBC IT)' or '${Assigned_Name_check}[0]'=='Nallari, Mohan' or '${Assigned_Name_check}[0]'=='Balla, Sangeetha Balla (CWM-NR)' or '${Assigned_Name_check}[0]'=='Quayum, Abdul (CWM-NR)' or '${Assigned_Name_check}[0]'=='Kinge, Pradnya (CWM-NR)'    set variable  ${default_Assigned_Name}
+    ...         ELSE  set variable  ${Assigned_Name_check}
+    ${Assigned_id_check}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.assignee.key
+    ${Assigned_id}=    run keyword if  '${Assigned_Name_check}[0]'=='Farmakovski, Chris (RBC IT)' or '${Assigned_Name_check}[0]'=='Nallari, Mohan' or '${Assigned_Name_check}[0]'=='Balla, Sangeetha Balla (CWM-NR)' or '${Assigned_Name_check}[0]'=='Quayum, Abdul (CWM-NR)' or '${Assigned_Name_check}[0]'=='Kinge, Pradnya (CWM-NR)'    set variable  ${default_Assigned_id}
+    ...         ELSE  set variable  ${Assigned_id_check}
+    ${Reporter_Name_check}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.reporter.displayName
+    ${Reporter_Name}=    run keyword if  '${Reporter_Name_check}[0]'=='Quayum, Abdul (CWM-NR)' or '${Reporter_Name_check}[0]'=='Balla, Sangeetha Balla (CWM-NR)'      set variable  ${default_Reporter_name}
+    ...         ELSE  set variable  ${Reporter_Name_check}
+    ${Reporter_id}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.reporter.name
+    ${Reporter_id}=    run keyword if  '${Reporter_Name_check}[0]'=='Quayum, Abdul (CWM-NR)' or '${Reporter_Name_check}[0]'=='Balla, Sangeetha Balla (CWM-NR)'      set variable    ${default_Reporter_id}
+    ...         ELSE  set variable  ${Reporter_id}
+    ${Get_Jira_bug_Status}=  JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].fields.status.name
+    ${Get_Jira_bug_Status}=    run keyword if  '${Get_Jira_bug_Status}[0]'=='Done'    create list  Closed
+    ...         ELSE  create list  New
+    log  ${Get_Jira_bug_Status}
+    create session  postrequestsession      ${ALM_URL}      auth=${auth_ALM}
+    ${Payload}  Catenate    {"data": [{"type": "defect","name": "${ALM_Defect_Key}${ALM_Defect_Summary}","description": "${ALM_Defect_Summary}","priority": "${ALM_Priority}","detected-by": "${Reporter_id}[0]","severity": "${ALM_severity}","detection-version": "1","project": "${Project_Name_In_ALM}","status": "${Get_Jira_bug_Status}[0]","user-01": "Defect","user-02": "${Testing_Phase_In_ALM}","user-04": "${Assigned_Name}[0] (${Assigned_id}[0])","user-05": "${Reporter_Name}[0] (${Reporter_id}[0])","user-06": "${Business_Function_In_ALM}", "user-09": "${Problem_Area_In_ALM}","user-07": "${Target_Cycle_In_ALM}", "target-rel":"${target_rel_id_in_QC}", "target-rcyc": "${target_rcyc_id_in_QC}","creation-time": "20${date_time}"}]}
+    log  ${Payload}
+    ${response}     post request  postrequestsession    /qcbin/api/domains/${ALM_DOMAIN}/projects/${ALM_PROJECT}/defects   headers=${headers}      data=${Payload}
+    ${statuscode}   convert to string   ${response.status_code}
+    log  ${response.content}
+    should be equal     ${statuscode}   201
+#    ${response_logout}     get request  postrequestsession    /qcbin/api/authentication/sign-out
+#    ${statuscode}   convert to string   ${response_logout.status_code}
+#    should be equal     ${statuscode}   200
+
+Check_Defect_Presence_Into_ALM
+    [Arguments]  ${Jira_Id}
+    log  ${Jira_Id}-:Already available into ALM    
+    
+    
+Create_Defect_Into_HP_ALM
+    Get_Jira_Defetc_details
+    Get_ALM_Defects_List
+    log  ${response_in_Json}
+    ${Total_Bug_Count}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.total
+    log     ${Total_Bug_Count}[0]
+    : FOR    ${Logging_Issue_ALM_Number}    IN RANGE    0    ${Total_Bug_Count}[0]
+    \    ${ALM_Defect_Key}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${Logging_Issue_ALM_Number}].key
+    \    log  ${alm_response_in_Json}
+    \    log  ${ALM_Defect_Key}[0]
+    \    ${contains}=   run keyword and return status    should contain  ${alm_response_in_Json}    ${ALM_Defect_Key}[0]
+    \    Run Keyword If  ${contains}!=${true}    HP_ALM_Post_Method    ${Logging_Issue_ALM_Number}      ELSE    Check_Defect_Presence_Into_ALM    ${ALM_Defect_Key}[0]
+    
+
+
+Update_ALM_defect_Status_From_Jira
+    Get_Authentication_Jira_ALM
+    ${date_time}    Get Current Date
+    ${date_time}    Convert Date    ${date_time}    result_format=%y/%m/%d
+    create session    defectsession   ${JIRA_URL}      auth=${auth_Jira}
+    ${response}     get request     defectsession   /rest/api/2/search?jql=project = ${JIRA_PROJECT} AND issuetype = Bug AND createdDate>= "2021/01/13"
+    ${statuscode}   convert to string   ${response.status_code}
+    should be equal     ${statuscode}   200
+    ${response_in_Json}    to json  ${response.content}
+    log  ${response_in_Json}
+    ${Get_total_count}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.total
+    set global variable  ${total_jira_count}  ${Get_total_count}[0]
+    log  ${total_jira_count}
+    ${date_time}    Get Current Date
+    ${date_time}    Convert Date    ${date_time}    result_format=%y-%m-%d
+    create session  getrequestsession      ${ALM_URL}      auth=${auth_ALM}
+    ${headers}  create dictionary  Content-Type     application/json
+    ${response}     get request  getrequestsession    /qcbin/api/domains/${ALM_DOMAIN}/projects/${ALM_PROJECT}/defects?fields=name&query="(creation-time>='2021-01-13') ; project='${Project_Name_In_ALM}'"   headers=${headers}
+    ${statuscode}   convert to string   ${response.status_code}
+    should be equal     ${statuscode}   200
+    ${alm_response_in_Json}    to json  ${response.content}
+    log  ${alm_response_in_Json}
+    set global variable  ${alm_response_in_Json}
+    FOR  ${i}    IN RANGE    0    ${total_jira_count}
+        ${Get_current_Status}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${i}].fields.status.name
+        log  ${Get_current_Status}
+        set global variable  ${Jira_bug_current_Status}  ${Get_current_Status}[0]
+        ${Get_defect_Id}    JSONLibrary.Get Value From Json  ${response_in_Json}    $.issues[${i}].key
+        log  ${Get_defect_Id}[0]
+        set global variable  ${Get_jira_defect_Id}  ${Get_defect_Id}[0]
+        Compare_defect_Status_And_update_the_ALM  ${total_jira_count}  ${alm_response_in_Json}  ${Jira_bug_current_Status}  ${Get_jira_defect_Id}
+    END
+
+Compare_defect_Status_And_update_the_ALM
+    [Arguments]    ${total_jira_count}  ${alm_response_in_Json}  ${Jira_bug_current_Status}  ${Get_jira_defect_Id}
+    log  ${total_jira_count}
+    log  ${alm_response_in_Json}
+    log  ${Jira_bug_current_Status}
+    log  ${Get_jira_defect_Id}
+    FOR  ${j}   IN RANGE    0    ${total_jira_count}
+        ${Get_ALM_Defect_Summary}    JSONLibrary.Get Value From Json  ${alm_response_in_Json}    $.data[${j}].name
+        log  ${Get_ALM_Defect_Summary}
+        log  ${Get_ALM_Defect_Summary}[0]
+        log  ${Get_jira_defect_Id}
+        set global variable  ${ALM_Defect_Summary}   ${Get_ALM_Defect_Summary}[0]
+        ${Get_ALM_Defect_id}    JSONLibrary.Get Value From Json  ${alm_response_in_Json}    $.data[${j}].id
+        log  ${Get_ALM_Defect_id}
+        log  ${Get_ALM_Defect_id}[0]
+        set global variable  ${ALM_Defect_id}   ${Get_ALM_Defect_id}[0]
+        ${get_status}=   run keyword and return status  should contain  ${ALM_Defect_Summary}  ${Get_jira_defect_Id}
+        Run Keyword If  ${get_status} and '${Jira_bug_current_Status}'=='Done'  Update_ALM_Defects_Status_API   ${ALM_Defect_id}
+        ...     ELSE  log  Not matching
+    END
+
+Update_ALM_Defects_Status_API
+    [Arguments]  ${ALM_Defect_id_number}
+    Get_Authentication_Jira_ALM
+    create session  getrequestsession      ${ALM_URL}      auth=${auth_ALM}
+    ${headers}  create dictionary  Content-Type     application/json
+    ${B_Payload}=    Catenate    {"data": [{"type": "defect","id": ${ALM_Defect_id_number},"status": "Closed","detection-version": "1","user-07": "SDF","user-01": "Defect"}]}
+    ${response}     put request  getrequestsession    /qcbin/api/domains/${ALM_DOMAIN}/projects/${ALM_PROJECT}/defects   headers=${headers}  data=${B_Payload}
+    ${statuscode}   convert to string   ${response.status_code}
+    should be equal     ${statuscode}   200
+
+
+* Test Cases *
+Testing_hpalm
+    #Login_To_Jira
+    #Get_Jira_Defetc_details
+    #Get_ALM_Defects_List
+    Create_Defect_Into_HP_ALM
+    #Jira_Defetc_details
+    #Update_ALM_defect_Status_From_Jira
+    #Create_Defect_Into_HP_ALM
+    #Checking_Set_Variable_method
+    #Checking_Replace_Method
+    #Get_Jira_Defetc_details
+    #Get_Jira_Defetc_details
+    #Get_ALM_Defects_List
+    #Get_Jira_Defetc_details
