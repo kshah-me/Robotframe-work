@@ -1,0 +1,276 @@
+import requests
+import xml.etree.ElementTree as ET
+from datetime import datetime
+
+session = requests.session()
+HPALMURL = "http://alm126.fg.rbc.com:8085/qcbin"
+HPALMDOMAIN = "RA_PAYMENTS_TRADE_TECH"
+HPALMPROJECT = "PSH"
+
+HPALMTESTSETID = ''
+HPALMUSER = ""
+HPALMPASSWORD = "Canadacomming@123"
+header = {'Content-Type': 'application/xml'}
+payload = ""
+tcName = ''
+LWSSOcookie = ''
+QCSession = ''
+sessionvar = ''
+testconfigid = ''
+cycleid = ''
+testid = ''
+testcyclid = ''
+execdate = str(datetime.today().strftime('%Y-%m-%d'))
+exectime = str(datetime.today().strftime('%H:%M:%S'))
+run_id = ''
+
+
+def set_hpalm_cred(user, passwd):
+    global HPALMUSER
+    global HPALMPASSWORD
+    global payload
+    HPALMUSER = str(user)
+    HPALMPASSWORD = str(passwd)
+    payload = "<alm-authentication><user>" + HPALMUSER + "</user><password>" + HPALMPASSWORD + "</password></alm-authentication>"
+
+
+def get_LWSSOcookie():
+    global LWSSOcookie
+    r = session.post(HPALMURL+"/authentication-point/alm-authenticate", headers=header, data=payload)
+    LWSSOcookie = r.headers
+    return LWSSOcookie
+    
+    
+def get_sessionvar():
+    global sessionvar
+    global QCSession
+    LWSSOcookie = get_LWSSOcookie()
+    url2 = HPALMURL + '/rest/site-session'
+    sessionvar = session.post(url2, data=payload, cookies=LWSSOcookie)
+    # print('sessionvar:')
+    # print(sessionvar.headers)
+    QCSession = sessionvar.headers.get("QCSession")
+    XSRF_TOKEN = sessionvar.headers.get("XSRF-TOKEN")
+    # cookies2 = QCSession + ";" + LWSSOcookie
+    # # print(r.text)
+    # return sessionvar
+
+
+def get_xmlstr():
+    get_sessionvar()
+    # sessionvar = get_sessionvar()
+    url3 = HPALMURL + "/rest/domains/RA_PAYMENTS_TRADE_TECH/projects/" + HPALMPROJECT + "/test-instances?query={cycle-id[" + HPALMTESTSETID + "]}"
+    # print(url3)
+    # print(payload)
+    # payload3 = payload
+    r3 = session.get(url3, data=payload, cookies=sessionvar)
+    # print("\n-------r3 text----------\n"+r3.text)
+    # #################
+    xmlstr = r3.text
+    return xmlstr
+
+
+def test_alm_logout():
+    url3 = HPALMURL + "/rest/domains/RA_PAYMENTS_TRADE_TECH/projects/" + HPALMPROJECT + "/test-instances?query={cycle-id[" + HPALMTESTSETID + "]}"
+    # print(url3)
+    # print(payload)
+    # payload3 = payload
+    r3 = session.get(url3, data=payload, cookies=sessionvar)
+    print("\n-------r3 text----------\n"+r3.text)
+
+
+def get_ids():
+    xmlstr = get_xmlstr()
+    TCName = tcName + " [1]"
+    root = ET.fromstring(xmlstr)
+    # root = ET.parse("alm-test-set.xml")
+    # print(root.findall("./Entity//Value")[103].text)
+    xp = "./Entity//Value"
+    # vl = root.findall("./Entity//Value")
+    # print(vl)
+    values = []
+    fields = root.findall("./Entity//Fields")
+    # print(fields)
+    field = ''
+    for f in fields:
+        vl = f.findall("./Field//Value")
+        for i in vl:
+            if i.text == TCName:
+                print("TC Found!")
+                # print(i.text)
+                field = f
+    # print(field)
+    global testconfigid
+    global cycleid
+    global testid
+    global testcyclid
+    testconfigid = field.find("./Field[@Name='test-config-id']/Value").text
+    cycleid = field.find("./Field[@Name='cycle-id']/Value").text
+    testid = field.find("./Field[@Name='test-id']/Value").text
+    testcyclid = field.find("./Field[@Name='id']/Value").text
+    # print(testconfigid, cycleid, testid, testcyclid)
+    # return testconfigid, cycleid, testid, testcyclid
+    
+    
+def send_post_run():
+"""
+THIS METHOD WILL INITIATE A TEST RUN AND RETURN THE TEST RUN XML STRING
+"""
+  # testconfigid, cycleid, testid, testcyclid = get_ids()
+  get_ids()
+  owner = HPALMUSER
+  url4 = HPALMURL + "/rest/domains/" + HPALMDOMAIN + "/projects/" + HPALMPROJECT + "/runs"
+  # execdate: 2020-07-23
+  # exectime: 09:49:10
+  # execdate = str(datetime.today().strftime('%Y-%m-%d'))
+  # exectime = str(datetime.today().strftime('%H:%M:%S'))
+  # print(execdate, exectime)
+  new_payload = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" + "<Entity Type=\"run\">" + "<Fields>" + "<Field Name=\"test-config-id\"><Value>" + testconfigid + "</Value></Field>" + "<Field Name=\"cycle-id\"><Value>" + cycleid + "</Value></Field>" + "<Field Name=\"test-id\"><Value>" + testid + "</Value></Field>" + "<Field Name=\"testcycl-id\"><Value>" + testcyclid + "</Value></Field>" + "<Field Name=\"os-build\"><Value>Build 7601</Value></Field>" + "<Field Name=\"name\"><Value>Automated Run</Value></Field>" + "<Field Name=\"owner\"><Value>" + HPALMUSER + "</Value></Field>" + "<Field Name=\"status\"><Value>Not Completed</Value></Field>" + "<Field Name=\"subtype-id\"><Value>hp.qc.run.MANUAL</Value></Field>" + "<Field Name=\"duration\"><Value>5</Value></Field>" + "<Field Name=\"execution-date\"><Value>" + execdate + "</Value></Field>" + "<Field Name=\"execution-time\"><Value>" + exectime + "</Value></Field>" + "</Fields>" + "</Entity>"
+  # print(new_payload)
+  # INITIATE NEW TEST RUN
+  r4 = session.post(url4, data=new_payload, headers=header, cookies=sessionvar)
+  # print("\n-------r4 text----------\n"+r4.text)
+  # #################
+  test_run_xmlstr = r4.text
+  # print(test_run_xmlstr)
+  return test_run_xmlstr
+
+
+
+def get_test_run_id():
+"""
+THIS METHOD WILL INITIATE A TEST RUN AND REASSIGN GLOBAL VARIABLE RUN ID
+"""
+  test_run_xmlstr = send_post_run()
+  root = ET.fromstring(test_run_xmlstr)
+  # print(root)
+  fields = root.findall("./Fields")
+  # print(fields)
+  f = fields[-1]
+  # print(fields[-1])
+  global run_id
+  run_id = f.find("./Field[@Name='id']/Value").text
+  # print(run_id)
+  # return run_id
+
+
+def send_put_lab_update(tcStatus="Passed"):
+    """
+    THIS METHOD WILL UPDATE THE TEST CASE STATUS ONLY, ALL THE STEPS STATUS WILL BE NO RUN.
+    """
+    # run_id = get_test_run_id()
+    # get_test_run_id()
+    owner = HPALMUSER
+    new_payload = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" + "<Entity Type=\"run\">" + "<Fields>" + "<Field Name=\"test-config-id\"><Value>" + testconfigid + "</Value></Field>" + "<Field Name=\"cycle-id\"><Value>" + cycleid + "</Value></Field>" + "<Field Name=\"test-id\"><Value>" + testid + "</Value></Field>" + "<Field Name=\"testcycl-id\"><Value>" + testcyclid + "</Value></Field>" + "<Field Name=\"os-build\"><Value>Build 7601</Value></Field>" + "<Field Name=\"name\"><Value>Automated Run</Value></Field>" + "<Field Name=\"owner\"><Value>" + HPALMUSER + "</Value></Field>" + "<Field Name=\"status\"><Value>" + tcStatus + "</Value></Field>" + "<Field Name=\"subtype-id\"><Value>hp.qc.run.MANUAL</Value></Field>" + "<Field Name=\"duration\"><Value>5</Value></Field>" + "<Field Name=\"execution-date\"><Value>" + execdate + "</Value></Field>" + "<Field Name=\"execution-time\"><Value>" + exectime + "</Value></Field>" + "</Fields>" + "</Entity>"
+    url5 = HPALMURL + "/rest/domains/" + HPALMDOMAIN + "/projects/" + HPALMPROJECT + "/runs/" + run_id
+    r5 = session.put(url5, data=new_payload, headers=header, cookies=sessionvar)
+    # print(r5.text)
+
+
+def run_steps():
+    """
+    THIS METHOD WILL INITIATE A TEST RUN AND RETURN ALL THE STEP IDS
+    :return:
+    """
+    # send_put_lab_update()
+    # get_test_run_id()
+    url6 = HPALMURL + "/rest/domains/" + HPALMDOMAIN + "/projects/" + HPALMPROJECT + "/runs/" + run_id + "/run-steps"
+    r6 = session.get(url6, cookies=sessionvar)
+    run_step_id_xml = r6.text
+    # print(run_step_id_xml)
+    root = ET.fromstring(run_step_id_xml)
+    # print(root)
+    fields = root.findall("./Entity//Fields")
+    # print(fields)
+    field = ''
+    step_id_list = []
+    for f in fields:
+        step_id = f.find("./Field[@Name='id']/Value").text
+        step_id_list.append(step_id)
+    # print(step_id_list)
+    return step_id_list
+
+
+
+def set_put_step_update(StepID, tcStatus='Passed'):
+    if tcStatus.lower() == 'passed':
+        step_status = "As Expected"
+    elif tcStatus.lower() == 'failed':
+        step_status = "Not As Expected"
+    else:
+        step_status = "Unknown"
+    new_payload = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" + "<Entity Type=\"run-step\">" + "<Fields>" + "<Field Name=\"id\"><Value>" + StepID + "</Value></Field>" + "<Field Name=\"status\"><Value>" + tcStatus + "</Value></Field>" + "<Field Name=\"actual\"><Value>" + step_status + "</Value></Field>" + "</Fields>" + "</Entity>"
+    url7 = HPALMURL + "/rest/domains/" + HPALMDOMAIN + "/projects/" + HPALMPROJECT + "/runs/" + run_id + "/run-steps/" + StepID
+    # url7 = url6 + "/" + StepID
+    r7 = session.put(url7, data=new_payload, headers=header, cookies=sessionvar)
+    # print(r7.text)
+
+
+def upload_attachments(result_file):
+    # result_file = 'EPS83_TC001_Verify_ZX40AD_Transaction Code_DDA-GL_Debit403_Credit300.zip'
+    # result_file = 'C:\\Users\\abquayum\\Documents\\GPI_API\\Automation\\SPS\\SPSCloud_SubmitPayment\\results\\EPS83_TC001_Verify_ZX40AD_Transaction Code_DDA-GL_Debit403_Credit300.zip'
+    url8 = HPALMURL + "/rest/domains/" + HPALMDOMAIN + "/projects/" + HPALMPROJECT + "/runs/" + run_id + "/attachments"
+    upload_file_name = tcName + '.zip'
+    attachment_header = {'Cookie': QCSession, 'Content-Type': 'application/octet-stream', 'slug': upload_file_name}
+    attach_file = open(result_file, 'rb')
+
+    r8 = session.post(url8, headers = attachment_header, data=attach_file)
+
+    if str(r8.status_code) == '201':
+        print('Result files uploaded to HP ALM successfully!\n--------------')
+    else:
+        print('Failed to uplaod result files in HP ALM.\n--------------')
+        print(r8.status_code)
+        print(r8.text)
+
+
+def set_global_tc_name(curnt_tc_name):
+    global tcName
+    tcName = curnt_tc_name
+
+
+def set_global_test_set_id(curnt_test_set):
+  global  HPALMTESTSETID
+  HPALMTESTSETID = curnt_test_set
+
+def logout_alm():
+  url2 = HPALMURL + '/rest/site-session'
+  url9 = HPALMURL+"/authentication-point/logout"
+  url10 = HPALMURL+"/api/authentication/sign-out"
+  out1 = session.delete(url2, headers=header, cookies=sessionvar)
+  out2 = session.get(url9, headers=header, cookies=sessionvar)
+  out3 = session.get(url10, headers=header, cookies=sessionvar)
+  # print(out1.headers)
+  # print('------------')
+  # print(out2.headers)
+  # print('------------')
+  # print(out3.headers)
+  print('HPALM session logout successfully..')
+
+
+def update_tc_with_all_steps(status='Passed', result_file_location=''):
+  """
+    - status should be 'Passed' or 'Failed' or as per ALM Status option.
+    - before running it set global tc_name, global test_set_id
+    """
+    try:
+        get_test_run_id()
+        step_id_list = run_steps()
+        for i in step_id_list:
+            set_put_step_update(i, status)
+        send_put_lab_update(status)
+
+        if result_file_location:
+            result_file = result_file_location + tcName + '.zip'
+            # print(result_file)
+        # report_file = "test001.zip"
+        # report_file = "payload.txt"
+            upload_attachments(result_file)
+        else:
+            print('Skipping HP ALM Result upload, result file location not found.')
+
+        logout_alm()
+        print("For TC: " + tcName + ". ALL Steps updated!!")
+    except Exception as e:
+        logout_alm()
+        print(e)
