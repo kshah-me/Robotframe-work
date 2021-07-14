@@ -1,0 +1,1 @@
+python -m robot --outputdir ..\\Result/Search_Criteria_Scenarios    --timestampoutputs  --log Search_Criteria_Scenarios.html     --report Search_Criteria_Scenarios_reprot.html    --output Search_Criteria_Scenarios_output.xml    Search_Criteria_Scenarios.robot
