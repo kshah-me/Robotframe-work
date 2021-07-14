@@ -4,3 +4,5 @@ def compress_the_Folder(locationofFile, tc_name):
    # zip_file = tc_results_dir + '.zip'
    # print(zip_file)
    return locationofFile
+   
+compress_the_Folder('C:\\Users\\XXXX\\Desktop\\SPSCloud_test_cases\\SPS_Cloud_UI_Automation/', 'Result')
